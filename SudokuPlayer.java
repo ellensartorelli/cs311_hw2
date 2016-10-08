@@ -133,7 +133,6 @@ public class SudokuPlayer implements Runnable, ActionListener {
 
 	}
 
-	// This is the Recursive AC3. ( You may change this method header )
 	private final boolean backtrack(int cellx, int celly, Cell[][] cellsPass) {
 		recursions += 1;
 
@@ -170,13 +169,13 @@ public class SudokuPlayer implements Runnable, ActionListener {
 				currentCell.setDomain(vals[cellx][celly]);
 				// next
 				return backtrack(nextCellX, nextCellY, cellsPass);
-			} 
-			
+			}
+
 			// no value set by default, set and call next
 			else {
-				//for value in domain, make a copy, set domain, and backtrack
+				// for value in domain, make a copy, set domain, and backtrack
 				for (Integer value : cellsPass[cellx][celly].domain) {
-					
+
 					// make a copy of cells (equivalent to domains)
 					Cell[][] cellsCopy = new Cell[9][9];
 					for (int i = 0; i < 9; i++) {
@@ -184,16 +183,91 @@ public class SudokuPlayer implements Runnable, ActionListener {
 							cellsCopy[i][j] = cellsPass[i][j].clone();
 						}
 					}
-					
+
 					// set a domain value
 					Cell currentCell = cellsCopy[cellx][celly];
 					currentCell.setDomain(value);
-					
+
 					// call backtrack on next cell
 					if (backtrack(nextCellX, nextCellY, cellsCopy)) {
 						return true;
 					}
 				}
+			}
+		}
+
+		return false;
+	}
+
+	private final boolean custom(int cellx, int celly, Cell[][] cellsPass) {
+		recursions += 1;
+
+		// check ac3
+		if (!AC3(cellsPass)) {
+			return false;
+		}
+
+		// this is the last cell
+
+		int minDomain = 10;
+		int minDomainX = 0;
+		int minDomainY = 0;
+
+		int nextCellX = cellx + 1;
+		int nextCellY = celly;
+		int seenCount = 0;
+
+		boolean setNext = false;
+		// iterate through cells
+		for (int i = 0; i < 9; i++) {
+			for (int j = 0; j < 9; j++) {
+				if (!cellsPass[i][j].isSeen()) {
+					if (cellsPass[i][j].domain.size() == 1) {
+						nextCellX = i;
+						nextCellY = j;
+						setNext = true;
+						break;
+					}
+					else if(cellsPass[i][j].domain.size()<minDomain){
+						minDomain = cellsPass[i][j].domain.size();
+						minDomainX = i;
+						minDomainY = j;
+					}
+				}
+				else{
+					seenCount++;
+				}
+
+			}
+			if (setNext) {
+				break;
+			}
+		}
+		if (seenCount == 81){
+			return true;
+		}
+		if(!setNext){
+			nextCellX = minDomainX;
+			nextCellY = minDomainY;
+		}
+
+		for (Integer value : cellsPass[nextCellX][nextCellY].domain) {
+
+			// make a copy of cells (equivalent to domains)
+			Cell[][] cellsCopy = new Cell[9][9];
+			for (int i = 0; i < 9; i++) {
+				for (int j = 0; j < 9; j++) {
+					cellsCopy[i][j] = cellsPass[i][j].clone();
+				}
+			}
+
+			// set a domain value
+			Cell currentCell = cellsCopy[nextCellX][nextCellY];
+			currentCell.setDomain(value);
+
+			// call backtrack on next cell
+			if (backtrack(nextCellX, nextCellY, cellsCopy)) {
+				return true;
 			}
 		}
 
@@ -246,10 +320,20 @@ public class SudokuPlayer implements Runnable, ActionListener {
 
 		// ’success’ should be set to true if a successful board
 		// is found and false otherwise.
-		boolean success = true;
 		board.Clear();
-
+		ops = 0;
+		recursions = 0;
 		System.out.println("Running custom algorithm");
+
+		// sets up all arcs, as well as cells, populating their neighbors
+		allDiff();
+		// replaces default domain with known constraints
+		setupGlobalDomains();
+
+		// Initial call to backtrack() on cell 0 (top left)
+		boolean success = custom(0, 0, cells);
+
+		// Prints evaluation of run
 
 		// -- Your Code Here --
 
@@ -389,6 +473,7 @@ public class SudokuPlayer implements Runnable, ActionListener {
 		int[] neighborsX = new int[20];
 		int[] neighborsY = new int[20];
 		ArrayList<Integer> domain = new ArrayList();
+		boolean explored;
 
 		public Cell(int[] nx, int[] ny, int cellX, int cellY) {
 			this.neighborsX = nx.clone();
@@ -396,13 +481,16 @@ public class SudokuPlayer implements Runnable, ActionListener {
 			this.x = cellX;
 			this.y = cellY;
 			domain = setDefaultDomain();
+			this.explored = false;
 		}
 
-		public Cell(int[] nx, int[] ny, int cellX, int cellY, ArrayList<Integer> sDomain) {
+		public Cell(int[] nx, int[] ny, int cellX, int cellY, ArrayList<Integer> sDomain, boolean explored) {
 			this.neighborsX = nx.clone();
 			this.neighborsY = ny.clone();
 			this.x = cellX;
 			this.y = cellY;
+			this.explored = explored;
+
 			for (Integer i : sDomain) {
 				domain.add(i);
 			}
@@ -415,10 +503,15 @@ public class SudokuPlayer implements Runnable, ActionListener {
 		public void setDomain(Integer x) {
 			domain.clear();
 			domain.add(x);
+			this.explored = true;
 		}
 
 		public boolean isEmpty() {
 			return domain.isEmpty();
+		}
+
+		public boolean isSeen() {
+			return this.explored;
 		}
 
 		public ArrayList setDefaultDomain() {
@@ -431,7 +524,7 @@ public class SudokuPlayer implements Runnable, ActionListener {
 		}
 
 		public Cell clone() {
-			Cell c = new Cell(this.neighborsX, this.neighborsY, this.x, this.y, this.domain);
+			Cell c = new Cell(this.neighborsX, this.neighborsY, this.x, this.y, this.domain, this.explored);
 			return c;
 
 		}
@@ -808,4 +901,3 @@ public class SudokuPlayer implements Runnable, ActionListener {
 	static int numCells = 15;
 	static DecimalFormat myformat = new DecimalFormat("###,###");
 }
-
